@@ -1,0 +1,391 @@
+---
+title: "Linear Modeling"
+output: 
+  html_document: 
+    fig_caption: yes
+    toc: yes
+    toc_float: true
+---
+
+```{r echo = FALSE, message = FALSE, warning = FALSE}
+library(tidyverse)
+library(broom)
+sci <- readRDS("sci.rds") 
+
+# data frame with square foot bins
+frag_break <- c(0, 5, 10, 15, 20, Inf)
+sci_tmp <- sci %>% 
+  filter(!is.na(fragility)) %>% 
+  mutate(frag_bins = cut(fragility, breaks = frag_break)) %>% 
+  group_by(frag_bins) %>% 
+  mutate(bin_meany = mean(peak_size),
+         bin_medx = max(fragility)) %>% 
+  ungroup()
+```
+
+
+We'll focus on inferential models today and build towards predictive models next week.
+
+# What are models?
+
+By a model, we mean a mathematical representation about the process that generated our observed data (aka data generation process). That is, how an outcome of interest (a response variable, dependent variable, $Y$) is related to (is a function of) one or more predictor (explanatory, independent, $X$) variables. For example, $$Y = \beta_0 + \beta_1 X_1 + \beta_2 X_2 + \epsilon$$
+
+where $Y$ is the outcome/response variable, $X_1$ and $X_2$ are the predictors/explanatory variables, $\beta_0$ and $\beta_1$ are coefficients to be estimated, and $\epsilon$ is random error (more below). 
+
+## What are linear models?
+
+Linear models, or regression models, trace the the distribution of the dependent variable ($Y$) -- or some characteristic of the distribution (the mean) -- as a function of the independent variables ($X$s).In other words, the regression function/linear model is the curve determined by the conditional means (conditional expectation) of the response variable for fixed values of explanatory variables. 
+
+Using the SCI data, I've plotted the "peak size" of a displacement event as a function of state fragility -- with fragility collapsed into bins.
+
+```{r}
+# plot with bins
+p <- ggplot(sci_tmp, aes(x = bin_medx, y = peak_size)) 
+p + geom_point(alpha = 1/5) 
+```
+
+This shows the conditional distribution of peak size. Let's add the conditional mean for each category of fragility.
+
+```{r}
+# plot with conditional means
+p + geom_point(alpha = 1/5) + 
+  geom_point(aes(x=bin_medx, y=bin_meany), color = "orange", size = 3) 
+```
+
+If we connect these dots, we've traced the curve of the conditional mean of peak size.
+
+```{r}
+# plot with line connecting conditional means
+p + geom_point(alpha = 1/5) + 
+  geom_point(aes(x=bin_medx, y=bin_meany), color = "orange", size = 3) +
+  geom_line(aes(x=bin_medx, y=bin_meany), color = "orange")
+```
+
+In linear regression analysis, we add the additional caveat that (the mean of) $Y$ is some  **linear** function of $X$. 
+
+```{r}
+# plot with regression line
+p + geom_point(alpha = 1/15) + 
+  geom_smooth(method = "lm", se = FALSE, color = "blue") +
+  geom_point(aes(x = bin_medx, y = bin_meany), color = "orange", size = 3) +
+  geom_line(aes(x = bin_medx, y = bin_meany), color = "orange") 
+```
+
+We represent the relationship mathematically $$E(Y|X_i) = \beta_0 + \beta_1 X_1 + \beta_2 X_2$$
+
+Here, $\beta_1$ represents the expected unit change in $Y$ for a unit change in $X_1$.
+
+For example,
+
+```{r echo = FALSE}
+lm_peak <- lm(peak_size ~ bin_medx, data = sci_tmp)
+# add predicted values to df
+sci_tmp$predicted <- predict(lm_peak)   # Save the predicted values
+sci_tmp$residuals <- residuals(lm_peak) # Save the residual values
+```
+
+$$peak_size = `r format(round(lm_peak$coefficients[[1]], 0), scientific = FALSE)` + `r round(lm_peak$coefficients[[2]], 0)` * fragility$$
+
+For every unit change in fragility bins -- in this case, a 5 point increase -- we expect peak size to increase by `r round(lm_peak$coefficients[[2]], 0)` dollars. The intercept, in this case, is essentially meaningless -- why?
+
+## Linearity
+
+Linearity doesn’t necessarily imply that the curve connecting the mean of $Y$ conditional on values of $X$ is a straight line (though that is often what we impose), but that the *parameters* that describe the function relating $Y$ to the $X$s are linear. The equation is additive -- the weights aren't multipled or raised to a power other than 1. 
+
+This **is not** additive $$E(Y|X_i) = \beta_0 + \beta_1 X_1^{\beta_2}$$
+
+... and so **not** a linear model. But this is additive $$E(Y|X_i) = \beta_0 + \beta_1 X_1 + \beta_2 X_2^2$$
+
+... and so **is** a linear model, though not a straight line.
+
+
+## Model error
+
+Models are probabilistic, not deterministic. 
+
+* The regression tells us about the average (peak) displacement size for a given state context; any given event will deviate from the conditional expectation (conditional mean), much like an event's size will deviate from the overall mean in the sample.
+* Peak size isn't perfectly predicted by fragility, or even fragility and a lot of other important variables.
+* And if history was repeated, the peak size would vary from those we observe here.
+
+No model will perfectly predict an outcome of interest, so regression models are largely about quantifying our uncertainty. The error term is meant to capture this stochastic element
+
+
+## An aside (sort of) {#box}
+
+All statistical models are extreme simplifications of complex social reality, not literal representations of the social processes by which outcomes are realized and observed.
+
+Or, as George Box famously notes in his [1979 address to ASA](https://www-jstor-org.proxy01.its.virginia.edu/stable/2286713) (via UVA): 
+
+> Models, of course, are never true, but fortunately it is only necessary that they be useful. For this it is usually needful only that they not be grossly wrong.
+
+More succintly, in [1987](https://search.lib.virginia.edu/catalog/u770409)
+
+> All models are wrong, but some are useful.
+
+Avoid reifying statistical models; they are descriptive summaries, not literal accounts of social processes. 
+
+## Residuals
+
+$\epsilon$ is our random (stochastic) element, the error or disturbance term. It represents the deviation of a particular value of $Y_i$ from the conditional mean.
+$$\epsilon_i = Y_i - E(Y|X_i)$$
+
+Regression partitions variation in $Y$ into the systematic component (that accounted for by variation in $X$s) and the stochastic component (not explained).
+
+Error is estimated by the residuals -- the difference between the predicted value and actual value
+
+```{r echo = FALSE}
+# plot with residual lines
+# plot
+ggplot(sci_tmp, aes(x = bin_medx, y = peak_size)) +
+  geom_point(aes(color = residuals)) +
+  geom_line(aes(y = predicted)) +
+  geom_segment(aes(xend = bin_medx, yend = predicted)) +
+  scale_color_gradient2(low = "blue", mid = "white", high = "red") +
+  guides(color = FALSE)
+```
+
+The model parameters are estimated to generate a mean residual value of 0. What we use the residuals to estimate, then, is the variance of the error, $\sigma^2_{\epsilon}$ -- that is, how much a typical observation's actual value deviates from the expected value.
+
+Theoretically $\epsilon_i$ represents the aggregated omitted variables, measurement error in $Y$, and inherently random elements of $Y$. 
+
+
+## Estimation (briefly)
+
+We (usually) estimate the regression coefficients (weights, parameters) by minimizing the residual sum of squares (RSS, or the squared-error loss function). This generates estimates that define a line as close to the actual data points as possible. 
+
+$$min \sum (\hat{\epsilon}_i)^2\\
+min \sum(Y_i - \hat{Y}_i)^2\\
+min \sum(Y_i - \hat{\beta}_0 + \hat{\beta}_1 X_i)^2$$
+
+This **least-squares criterion** is a quadratic and symmetric function:
+
+* Quadratic: deviations farther from the line are weighted more heavily by the squaring process so atypical observations can have a big effect on the placement of the line. 
+* Symmetric: deviations above the least-squares line and those below it are treated the same. 
+
+
+# Before you model
+
+Explore and clean the data
+
+* numbers are read as numbers; factors are read as factors
+* values are in expected range
+* how much missingness, how are missing obs coded
+* how variables are distributed (histograms, density plots, etc.)
+
+Explore and visualize relationships
+
+* approximately linear? scatterplots and smoothers
+* interactions? conditioning plots and facetting
+
+<center>
+![](tukey_bulge.png){width=250px}
+</center>
+
+# Linear Models in R
+
+## Implementation in R
+
+To fit a linear model we propose a model and then estimate the coefficients and the standard deviation of the error term. For the model $Y = \beta_0 + \beta_1 X_1 + \beta_2 X_2 + \epsilon$, this means estimating $\beta_0$, $\beta_1$, $\beta_2$, and $\sigma$. 
+
+The basic function is `lm`; required arguments are `formula` and `data`.
+
+<center>
+`lm(Y ~ X1 + X2, data = mydata)`
+</center>
+
+
+```{r}
+lm_peak <- lm(peak_size ~ fragility + pre_pop + pol_terror + polity + gdp_per + hdi, 
+              data = sci)
+```
+
+## Model summary
+
+The saved linear model object contains various quantities of interest. Extractor functions provide those quantities, e.g., 
+```{r}
+summary(lm_peak)
+```
+
+* **Call:** The model formula, useful if result is saved for later
+* **Residuals:** A quick check of the distribution of residuals. Ideally, median is near 0, max and min, and 1Q and 3Q, are approximately equivalent.
+* **Coefficients:** 
+  * **Estimate:** $\hat{\beta}$
+  * **Std. error:** standard error of $\hat{\beta}$
+  * **t value:** test statistic for $H_0: \hat{\beta} = 0$, calculated by $\left(\frac{estimate}{std. error}\right)$
+  * $\mathbf{Pr(>|t|)}$: $p$-value of hypothesis test (2-sided)
+  * **Signif. codes:** indicate statistical significance
+* **Residual standard error:** $\hat{\sigma}$
+* **degrees of freedom:** # of obs - # of estimated parameters
+* **Multiple R-squared:** measure of model fit (0,1)
+* **Adjusted R-squared:** measure of model fit adjusted for number of parameters (0,1)
+* **F-statistic:** test statistic for hypothesis that all coefficients (other
+than intercept) simultaneously equal zero
+* **p-value:** $p$-value for F-statistics
+
+## Extraction
+
+To extract specific quantities of interest:
+```{r}
+coef(lm_peak)
+confint(lm_peak)
+head(fitted(lm_peak))
+
+# or save summary information
+ms_peak <- summary(lm_peak)
+# and extract quantitites
+ms_peak$coefficients
+ms_peak$adj.r.squared
+ms_peak$sigma 
+```
+
+
+## Specifying Models
+
+R uses the Wilkinson-Rogers notation for specifying models: 
+
+<center>
+`response variable ~ explanatory variables`
+</center>
+
+The tilde (~) is read as "is modelled as a function of" or "regressed on." Additional model symbols are include:
+
+* `+` inclusion of variable
+* `-` exclusion of variable (not subtraction)
+* `∗` include variables and their interactions 
+* `:` interact variables
+* `∧` interaction of variables to specified degree (not an exponent)
+
+To override a model symbol, use the `I()` function.
+
+Some examples
+
+* `y ~ x1 + x2 + x3` (multiple regression)
+* `y ~ .` (regress y on all variables in data set)
+* `y ~ x1 + x2 - 1` (exclude intercept)
+* `y ~ x1 + x2 + x2:x2` (interact x1 and x2)
+* `y ~ x1 * x2` (same as above)
+* `y ~ x1 + x2 + x3 + x1:x2 + x1:x3 + x2:x3 + x1:x2:x3` (all two and three-way interactions)
+* `y ~ x1 * x2 * x3` (same as above)
+* `y ~ (x1 + x2 + x3)ˆ2` (all 2-way interactions)
+* `y ~ x1 + I(x1ˆ2) + x3` (polynomial regression)
+* `y ~ poly(x1, 2, raw = TRUE) + x3` (polynomial regresion)
+
+## Factors
+
+For inclusion in a model, R requires categorical predictors -- like conflict type or ethnic composition -- to be encoded as factors. 
+By default, coefficients for factors are modeled using treatment contrasts -- one level is treated as the baseline and the other levels have coefficients that express differences from that baseline. For example, let's add conflict type.
+
+```{r}
+lm_peak <- lm(peak_size ~ fragility + pol_terror + polity + gdp_per + hdi + conflict_type, 
+              data = sci)
+summary(lm_peak)
+```
+
+The effect of the baseline category -- multiple conflicts -- is not listed, but is part of the intercept. The coefficients on the remaining levels represent how the average peak size in other kinds of conflict-driven displacements differ from the peak size in multiple conflict-induced events.
+
+
+## Interactions
+
+Inclusion of a factor variable tests for varying intercepts between categories, but assumes any numerical variables influence the outcome variable for each category in the same way -- e.g., the baseline peak size under multiple conflicts may be higher, but the relation between peak size and the political terror scale is the same across all conflict types.
+
+If, instead, the effect of a variable *depends* on another variable -- e.g., the effect of political terror on peak size depends on the type of conflict -- we say the variables interact. Interactions are one way of expressing potential causal heterogeneity, when an outcome is structured differently for different types of observations. 
+
+```{r}
+lm_peak_int <- lm(peak_size ~ fragility*conflict_type + pol_terror + polity + gdp_per + hdi, 
+                  data = sci)
+summary(lm_peak_int)
+```
+
+Here we have varying intercepts and varying slopes. We can have interactions between two factors, between a factor and numeric variable (as above), between two numeric variables, between three variables! And polynomial regression, where a predictor is included as a squared or cubed (or higher exponent) term, works the same way -- with a variable interacted with itself.  
+
+
+## Nonlinearities
+
+If data exploration suggested relationships aren't reasonably linear, transformations of the variables can accommodate a variety of nonlinearities. Logs and polynomials are the most widely used.
+
+Adding a squared X term:
+
+```{r}
+lm_peak_poly <- lm(peak_size ~ fragility + poly(pol_terror, 2, raw = TRUE) + polity + gdp_per + hdi, 
+                 data = sci)
+summary(lm_peak_poly)
+```
+
+Logging Y:
+
+```{r}
+lm_peak_log <- lm(log(peak_size) ~ fragility + pol_terror + polity + gdp_per + hdi,
+                  data = sci)
+summary(lm_peak_log)
+```
+
+Other possibilites include piecewise approaches (e.g., GAMs/splines).
+
+
+## Model evaluation
+For predictive models, we'll use cross-validation for model evaluation (over things like $R^2$ or AIC for model fit, or error diagnostics for model specification). Estimate, diagnose, build the model with a subset of your sample, and proceed with inference by estimating the “good” model on the remainder of your data. We'll hold on that until next week.
+
+<center>
+[Nota Bene](#box)
+</center>
+
+
+## Interpretation and visualization
+
+**Interpretation:** In multiple regression the coefficient represents the amount of change in $Y$ for a unit change in each predictor, *holding all other included variables contant*. That is, interpretation proceeds as if one predictor could change with no other variables changing.
+
+**Visualization:** models are often best conveyed visually. The `broom` package tidies model summaries into a `tibble` that we can plot.
+
+```{r}
+tidy_peak <- tidy(lm_peak, conf.int = TRUE, conf.level = 0.9)
+ggplot(tidy_peak, aes(x = estimate, y = term,
+                      xmin = conf.low,
+                      xmax = conf.high)) + 
+  geom_point() +
+  geom_vline(xintercept = 0) +
+  geom_errorbarh() +
+  labs(x = "Coefficient Estimate", y = "Intercept and Factors")
+```
+
+
+# Regression as Machine Learning
+
+We've been using regression as a statistical model; it is also one of the more widely used machine learning algorithms.
+
+## Machine learning
+
+As mathematical representations, statistical models and machine learning algorithms are often indistinguishable. In practice, they tend to be used differently. Machine learning focuses on data-driven prediction, whereas statistical modeling focuses on theory-driven knowledge discovery.
+
+Machine learning algorithms learn a target function ($f$) that best maps input variables ($X$) to an output variable ($Y$) -- $Y = f(X)$ -- in order to make predictions of $Y$ for new $X$, aka predictive modeling/analytics. The goal is to maximize prediction accuracy/minimize model error, without reference to explainability (or theory, hypotheses).
+
+| Statistical models | Machine learning models |
+|----|----|
+| Theory driven | Data driven |
+| Explanation | Prediction |
+| Researcher-curated data | Machine-generated data |
+| Evaluation via goodness of fit | Evaluation via prediction accuracy |
+
+
+## Some definitions
+
+For the example in the R script...
+
+* **RMSE:** Root Mean Squared Error, measures the average prediction error made by the model; i.e., the average difference between the observed outcome values and the values predicted by the model.
+* **Cross validation:** split data into a training set and test set; build/learn the model on the training set; calculate RMSE/prediction error of the model using the test/held-out data.
+* **$k$-fold cross validation:** divide data into $k$ sets, hold out 1 set and fit model with remaining $k-1$ sets; calculate RMSE/prediction error on the held-out data; repeat with each $k$ set; take average RMSE across $k$.
+
+
+# Friends of the Linear Model
+
+Many models expand on the basic linear regression model
+
+* Genearlized linear models (e.g., logit, poisson, multinomial, etc.)
+* Mixed effects models (random coefficients, hierarchical models)
+* Penalized regression (shrinkage or regulariziation, e.g., Ridge, Lasso, ElasticNet)
+* and more!
+
+
+# Resources
+
+* Garrett Grolemund and Hadley Wickham. 2018. [R for Data Science](https://r4ds.had.co.nz/model-intro.html), Chapters 22-25
+* James, G., et al. 2013. [An Introduction to Statistical Learning.](http://www-bcf.usc.edu/~gareth/ISL/) New York: Springer.
