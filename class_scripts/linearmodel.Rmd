@@ -10,6 +10,11 @@ output:
 ```{r echo = FALSE, message = FALSE, warning = FALSE}
 library(tidyverse)
 library(broom)
+library(corrplot)
+library(splines)
+library(ggeffects)
+library(vip)
+
 sci <- readRDS("sci.rds") 
 
 # data frame with square foot bins
@@ -84,9 +89,9 @@ sci_tmp$predicted <- predict(lm_peak)   # Save the predicted values
 sci_tmp$residuals <- residuals(lm_peak) # Save the residual values
 ```
 
-$$peak_size = `r format(round(lm_peak$coefficients[[1]], 0), scientific = FALSE)` + `r round(lm_peak$coefficients[[2]], 0)` * fragility$$
+$$peak size = `r format(round(lm_peak$coefficients[[1]], 0), scientific = FALSE)` + `r format(round(lm_peak$coefficients[[2]], 0), scientific = FALSE)` * fragility$$
 
-For every unit change in fragility bins -- in this case, a 5 point increase -- we expect peak size to increase by `r round(lm_peak$coefficients[[2]], 0)` dollars. The intercept, in this case, is essentially meaningless -- why?
+For every unit change in fragility bin -- in this case, a 5 point increase -- we expect peak size to increase by `r format(round(lm_peak$coefficients[[2]], 0), scientific = FALSE)`. The intercept, in this case, is essentially meaningless -- why?
 
 ## Linearity
 
@@ -131,7 +136,7 @@ $$\epsilon_i = Y_i - E(Y|X_i)$$
 
 Regression partitions variation in $Y$ into the systematic component (that accounted for by variation in $X$s) and the stochastic component (not explained).
 
-Error is estimated by the residuals -- the difference between the predicted value and actual value
+Error is estimated by the residuals -- the difference between the predicted value and actual value.
 
 ```{r echo = FALSE}
 # plot with residual lines
@@ -171,11 +176,8 @@ Explore and clean the data
 * values are in expected range
 * how much missingness, how are missing obs coded
 * how variables are distributed (histograms, density plots, etc.)
+* how variables are related (bivariately)? 
 
-Explore and visualize relationships
-
-* approximately linear? scatterplots and smoothers
-* interactions? conditioning plots and facetting
 
 <center>
 ![](tukey_bulge.png){width=250px}
@@ -201,7 +203,7 @@ lm_peak <- lm(peak_size ~ fragility + pre_pop + pol_terror + polity + gdp_per + 
 
 ## Model summary
 
-The saved linear model object contains various quantities of interest. Extractor functions provide those quantities, e.g., 
+The saved linear model object contains various quantities of interest. Extractor functions provide those quantities. 
 ```{r}
 summary(lm_peak)
 ```
@@ -222,22 +224,23 @@ summary(lm_peak)
 than intercept) simultaneously equal zero
 * **p-value:** $p$-value for F-statistics
 
-## Extraction
+## Extraction and Effects
 
 To extract specific quantities of interest:
 ```{r}
 coef(lm_peak)
 confint(lm_peak)
 head(fitted(lm_peak))
-
-# or save summary information
-ms_peak <- summary(lm_peak)
-# and extract quantitites
-ms_peak$coefficients
-ms_peak$adj.r.squared
-ms_peak$sigma 
 ```
 
+We can use ggeffects to show how $Y$ changes as an identified $X$ changes:
+```{r}
+plot(ggpredict(lm_peak, terms = c("pol_terror"))) 
+```
+And while variable importance in linear regression is generally based on the t value, we'll see other non-parametric models where it's not quite so simple. To help us see which predictors are influencing $Y$, we can use the vip function:
+```{r}
+vip(lm_peak)
+```
 
 ## Specifying Models
 
@@ -252,23 +255,39 @@ The tilde (~) is read as "is modelled as a function of" or "regressed on." Addit
 * `+` inclusion of variable
 * `-` exclusion of variable (not subtraction)
 * `∗` include variables and their interactions 
-* `:` interact variables
-* `∧` interaction of variables to specified degree (not an exponent)
 
-To override a model symbol, use the `I()` function.
-
-Some examples
+And variables can be wrapped in functions in the model. Some examples
 
 * `y ~ x1 + x2 + x3` (multiple regression)
 * `y ~ .` (regress y on all variables in data set)
 * `y ~ x1 + x2 - 1` (exclude intercept)
-* `y ~ x1 + x2 + x2:x2` (interact x1 and x2)
-* `y ~ x1 * x2` (same as above)
-* `y ~ x1 + x2 + x3 + x1:x2 + x1:x3 + x2:x3 + x1:x2:x3` (all two and three-way interactions)
-* `y ~ x1 * x2 * x3` (same as above)
-* `y ~ (x1 + x2 + x3)ˆ2` (all 2-way interactions)
-* `y ~ x1 + I(x1ˆ2) + x3` (polynomial regression)
-* `y ~ poly(x1, 2, raw = TRUE) + x3` (polynomial regresion)
+* `y ~ x1 * x2` (interact x1 and x2)
+* `y ~ poly(x1, 2) + x3` (polynomial regresion)
+
+
+## An Aside on Visualizing Correlation Matrices
+It can be useful, as well, to understand the relations in your predictor variables.
+```{r}
+# create a subset of the data used in the model above
+sci_tmp <- sci %>% 
+  select(peak_size, fragility, pre_pop, pol_terror, polity, gdp_per, hdi) %>% 
+  drop_na  
+  
+cor_mat <- cor(sci_tmp) # generate a correlation matrix
+cor_mat
+```
+
+If the predictors are highly correlated, regression can't parse the variation in $Y$ due to one $X$ versus another. The correlation plot represents the relationships visually.
+```{r}
+corrplot(cor_mat, type = "upper", order = "hclust", tl.col = "black", tl.srt = 45)
+```
+
+Also a heatmap
+```{r}
+col <- colorRampPalette(c("blue", "white", "orange"))(100) 
+heatmap(x = cor_mat, col = col, symm = TRUE)
+```
+
 
 ## Factors
 
@@ -276,9 +295,9 @@ For inclusion in a model, R requires categorical predictors -- like conflict typ
 By default, coefficients for factors are modeled using treatment contrasts -- one level is treated as the baseline and the other levels have coefficients that express differences from that baseline. For example, let's add conflict type.
 
 ```{r}
-lm_peak <- lm(peak_size ~ fragility + pol_terror + polity + gdp_per + hdi + conflict_type, 
+lm_peak_fct <- lm(peak_size ~ fragility + pol_terror + polity + gdp_per + hdi + conflict_type, 
               data = sci)
-summary(lm_peak)
+summary(lm_peak_fct)
 ```
 
 The effect of the baseline category -- multiple conflicts -- is not listed, but is part of the intercept. The coefficients on the remaining levels represent how the average peak size in other kinds of conflict-driven displacements differ from the peak size in multiple conflict-induced events.
@@ -296,7 +315,15 @@ lm_peak_int <- lm(peak_size ~ fragility*conflict_type + pol_terror + polity + gd
 summary(lm_peak_int)
 ```
 
-Here we have varying intercepts and varying slopes. We can have interactions between two factors, between a factor and numeric variable (as above), between two numeric variables, between three variables! And polynomial regression, where a predictor is included as a squared or cubed (or higher exponent) term, works the same way -- with a variable interacted with itself.  
+Here we have varying intercepts and varying slopes. We can have interactions between two factors, between a factor and numeric variable (as above), between two numeric variables, between three variables! And polynomial regression, where a predictor is included as a squared or cubed (or higher exponent) term, works the same way -- with a variable interacted with itself. 
+
+And we can create an effects plot to help see the estimated interaction (we'll throw in a variance important plot while we're at it).
+```{r}
+# effect plot
+plot(ggpredict(lm_peak_int, terms = c("fragility", "conflict_type"))) 
+# variable importance plot
+vip(lm_peak_int) 
+```
 
 
 ## Nonlinearities
@@ -311,19 +338,84 @@ lm_peak_poly <- lm(peak_size ~ fragility + poly(pol_terror, 2, raw = TRUE) + pol
 summary(lm_peak_poly)
 ```
 
+Here intrepretation begins to get more complicated. The effects plot can help
+```{r}
+plot(ggpredict(lm_peak_poly, terms = c("pol_terror"))) 
+```
+
+Adding splines (and generating effects plot):
+
+```{r}
+lm_peak_spl <- lm(peak_size ~ fragility + ns(pol_terror, df = 2) + polity + gdp_per + hdi,
+                  data = sci)
+summary(lm_peak_spl)
+plot(ggpredict(lm_peak_spl, terms = c("pol_terror"))) 
+```
+
 Logging Y:
 
 ```{r}
 lm_peak_log <- lm(log(peak_size) ~ fragility + pol_terror + polity + gdp_per + hdi,
                   data = sci)
 summary(lm_peak_log)
+coef(lm_peak_log) %>% exp() %>% round(3)
 ```
 
-Other possibilites include piecewise approaches (e.g., GAMs/splines).
-
+So much easier to see what's going on with an effects plot, though:
+```{r}
+plot(ggpredict(lm_peak_log, terms = c("pol_terror"))) 
+```
 
 ## Model evaluation
-For predictive models, we'll use cross-validation for model evaluation (over things like $R^2$ or AIC for model fit, or error diagnostics for model specification). Estimate, diagnose, build the model with a subset of your sample, and proceed with inference by estimating the “good” model on the remainder of your data. We'll hold on that until next week.
+For predictive models, we'll use cross-validation for model evaluation (over things like $R^2$ or AIC for model fit, or error diagnostics for model specification). Estimate, diagnose, build the model with a subset of your sample, and proceed with inference by estimating the “good” model on the remainder of your data. We'll hold on that until next week. 
+
+But in the meantime, let's look at the AIC/BIC (information criteria, lower = better):
+
+```{r}
+AIC(lm_peak, lm_peak_fct, lm_peak_int, lm_peak_poly, lm_peak_spl, lm_peak_log)
+BIC(lm_peak, lm_peak_fct, lm_peak_int, lm_peak_poly, lm_peak_spl, lm_peak_log)
+```
+
+But wait! only models with same $Y$ value can be compared this way.
+
+Let's look at it another way -- getting closer to what we'll ultimately care about in predictive modeling: How well does the model generate outcomes like those we observe?
+```{r}
+sim_peak <- simulate(lm_peak, nsim = 50) # generate 50 simulated outcome vectors
+
+plot(density(sci$peak_size)) # the density of y (using base R plot)
+lines(density(sim_peak$sim_1), col = "grey80") # the outcomes simulated from the model
+for(i in 1:50)lines(density(sim_peak[[i]]), lty = 2, col = "grey80") # all 50 simulations
+```
+
+That's pretty bad! Let's look at the model with the lowest AIC and BIC:
+
+```{r}
+sim_peak_spl <- simulate(lm_peak_spl, nsim = 50)
+
+ggplot(sci, aes(x = peak_size)) + # we'll use ggplot this time
+  geom_density() +
+  geom_density(aes(x = peak_size, group = sim), 
+               pivot_longer(sim_peak_spl, everything(), 
+                            names_to = "sim", 
+                            values_to = "peak_size"),
+               color = "grey80")
+```
+
+Still very poor. How about the model on logged $Y$?
+
+```{r}
+sim_peak_log <- simulate(lm_peak_log, nsim = 50)
+
+ggplot(sci, aes(x = log(peak_size))) + 
+  geom_density() +
+  geom_density(aes(x = peak_size, group = sim), 
+               pivot_longer(sim_peak_log, everything(), 
+                            names_to = "sim", 
+                            values_to = "peak_size"),
+               color = "grey80")
+```
+
+Getting closer -- if peak displacement/scale is an outcome we want to model, a transformation might be useful (under the regression framework).
 
 <center>
 [Nota Bene](#box)
@@ -337,14 +429,15 @@ For predictive models, we'll use cross-validation for model evaluation (over thi
 **Visualization:** models are often best conveyed visually. The `broom` package tidies model summaries into a `tibble` that we can plot.
 
 ```{r}
-tidy_peak <- tidy(lm_peak, conf.int = TRUE, conf.level = 0.9)
-ggplot(tidy_peak, aes(x = estimate, y = term,
+tidy_peak <- tidy(lm_peak_log, conf.int = TRUE, conf.level = 0.9)
+
+ggplot(tidy_peak[2:6,], aes(x = estimate, y = term,
                       xmin = conf.low,
                       xmax = conf.high)) + 
   geom_point() +
   geom_vline(xintercept = 0) +
   geom_errorbarh() +
-  labs(x = "Coefficient Estimate", y = "Intercept and Factors")
+  labs(x = "Coefficient Estimate", y = "")
 ```
 
 
@@ -362,13 +455,11 @@ Machine learning algorithms learn a target function ($f$) that best maps input v
 |----|----|
 | Theory driven | Data driven |
 | Explanation | Prediction |
-| Researcher-curated data | Machine-generated data |
+| Researcher-curated data | Combination of curated, machine-generated data |
 | Evaluation via goodness of fit | Evaluation via prediction accuracy |
 
 
-## Some definitions
-
-For the example in the R script...
+## Some additional definitions
 
 * **RMSE:** Root Mean Squared Error, measures the average prediction error made by the model; i.e., the average difference between the observed outcome values and the values predicted by the model.
 * **Cross validation:** split data into a training set and test set; build/learn the model on the training set; calculate RMSE/prediction error of the model using the test/held-out data.
