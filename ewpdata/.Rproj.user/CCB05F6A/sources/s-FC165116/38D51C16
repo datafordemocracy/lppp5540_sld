@@ -1,0 +1,26 @@
+{
+    "collab_server" : "",
+    "contents" : "",
+    "created" : 1582756386229.000,
+    "dirty" : false,
+    "encoding" : "UTF-8",
+    "folds" : "",
+    "hash" : "2135130538",
+    "id" : "38D51C16",
+    "lastKnownWriteTime" : 1582865154,
+    "last_content_update" : 1582865154865,
+    "path" : "~/Box Sync/mpc/dataForDemocracy/globalpolicy/ewpdata/logit_ewp.R",
+    "project_path" : "logit_ewp.R",
+    "properties" : {
+        "cursorPosition" : "12,0",
+        "scrollLine" : "3",
+        "tempName" : "Untitled1"
+    },
+    "read_only" : false,
+    "read_only_alternatives" : [
+    ],
+    "relative_order" : 1,
+    "source_on_save" : false,
+    "source_window" : "",
+    "type" : "r_source"
+}

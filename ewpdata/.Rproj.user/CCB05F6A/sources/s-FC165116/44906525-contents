@@ -1,0 +1,5 @@
+p1 = c("cat1", "cat2", "cat3", "cat7")
+p2 = c("cat2", "cat4", "cat5", "cat7")
+df <- cbind(p1, p2)
+
+df <- df %>% mutate(pchar = as.character(paste(p1,p2, sep=",")))
