@@ -1,0 +1,73 @@
+---
+title: "Data Cleanup"
+author: "Group C"
+date: "4/2/2020"
+output:
+  html_document:
+    df_print: paged
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(readxl)
+library(tidyverse)
+library(countrycode)
+```
+
+#### Note
+data_wdi_raw.csv & data_polity_raw.csv are raw data files. data_wdi_processed.csv & data_polity_processed.csv are the processed outputs of this data cleanup project.
+
+## Conflict Drivers & Sources
+Regime type (polity scale from -10 to 10), trade dependence (Imports as a % of GDP from WDI), and economic reliance on agriculture (Agricultural production as a % of GDP from WDI).
+
+## Polity Data
+Filtered data for only post-1960 observations. Added a column with corresponding ISO3 codes for each country, removing observations where the country didn't have an ISO3 code. Renamed "iso" and "ccode_year" columns. Exported data into data_polity_processed.csv.
+
+```{r}
+# Polity dataset. The important driver iS polIty2 colUmn for each coUntry and year.
+polity <- read.csv("raw_data/data_polity_raw.csv")
+
+# Filtering for only post-1960 observations
+polity <- polity %>% filter(year >= 1960)
+
+# Adding iso column with iso3 codes
+polity_iso <- countrycode(polity$country, origin = "country.name", destination = "iso3c") %>% cbind(polity)
+names(polity_iso)[1] <- "iso"
+
+# Removing observations which don't have an iso3 code
+polity_iso <- polity_iso %>% filter(!is.na(iso))
+
+# Renaming columns
+names(polity_iso)[2] <- "ccode_year"
+
+# Export data into csv
+write.csv(polity_iso,"data_polity_processed.csv", row.names = FALSE)
+```
+
+## WDI Data
+
+Merged ISO3 country codes into the wdi data frame. Filtered out observations where ISO3 code was NA. Removed redundant columns and renamed the remaining columns. Exported the wdi data frame into data_wdi_processed.csv.
+
+```{r}
+# Read in data_wdi_raw.csv
+wdi <- read.csv("raw_data/data_wdi_raw.csv")
+
+# Merging ISO code column and renaming columns
+names(wdi)[1] <- "country"
+wdi_temp <- wdi$country %>% countrycode(origin = "country.name", dest = "iso3c") %>% cbind(wdi) 
+names(wdi_temp)[1] <- "iso"
+
+# Filtering out NA iso observations
+wdi <- wdi_temp %>% filter(!is.na(iso)) 
+
+# Removing redundant columns
+wdi <- wdi[, c(-3, -5)]
+
+# Renamed columns
+names(wdi) <- c("iso", "country", "year", "agri_percent_land_area", "agri_forestry_fishing_percent_GDP", "agri_employment_percent", "imports_percent_GDP")
+
+# Export CSV
+write.csv(wdi,"data_wdi_processed.csv", row.names = FALSE)
+
+```
+
