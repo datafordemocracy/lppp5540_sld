@@ -57,4 +57,9 @@ df_curve %>%
   geom_line(data = target, aes(y = size), color = "firebrick") + 
   annotate("text", x = max(target$years_elapsed)+3, y = max(target$size), 
            label = paste(target$iso), color = "firebrick", 
-           size = 3)
+           size = 3) +
+  labs(x = "Years since Displacement Onset (or 1960)", 
+       y = "Estimated Size of Displacement", 
+       title = "Displacement Size by Country of Origin", 
+       caption = "Data Source: UNHCR at http://popstats.unhcr.org/")
+  
