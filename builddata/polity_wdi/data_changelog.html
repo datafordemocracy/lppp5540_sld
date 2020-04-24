@@ -1650,7 +1650,7 @@ summary {
 </div>
 <div id="polity-data" class="section level2">
 <h2>Polity Data</h2>
-<p>Filtered data for only post-1960 observations. Added a column with corresponding ISO3 codes for each country, removing observations where the country didn’t have an ISO3 code. Renamed “iso” and “ccode_year” columns. Exported data into data_polity_processed.csv.</p>
+<p>Filtered data for only post-1960 observations. Added a column with corresponding ISO3 codes for each country, removing observations where the country didn’t have an ISO3 code. Renamed “iso” and “ccode_year” columns. Filtered data for only post-2000 year observations. Created two new boolean columns for anarchy and interruption, making them true when polity == -77 or -66 respectively. Changed polity2 to 0 wherever polity == -66 or -77. Exported data into data_polity_processed.csv.</p>
 <pre class="r"><code># Polity dataset. The important driver iS polIty2 colUmn for each coUntry and year.
 polity &lt;- read.csv(&quot;raw_data/data_polity_raw.csv&quot;)
 
@@ -1668,12 +1668,23 @@ polity_iso &lt;- polity_iso %&gt;% filter(!is.na(iso))
 # Renaming columns
 names(polity_iso)[2] &lt;- &quot;ccode_year&quot;
 
+polity_iso &lt;- polity_iso %&gt;% filter(year &gt; 1999)
+
+# Replace polity2 column values of -66 and -77 with 0
+polity_iso$interruption &lt;- 0 # Creating new column for interruption, set all values to 0
+polity_iso$anarchy &lt;- 0 # Creating new column for interruption, set all values to 0
+# Set boolean columns according to indices where polity == -66 and -77
+polity_iso[(which(polity_iso$polity == -66)), &quot;interruption&quot;] &lt;- 1
+polity_iso[(which(polity_iso$polity == -77)), &quot;anarchy&quot;] &lt;- 1
+# Replace polity2 scores where polity == -66 | -77 to 0
+polity_iso[(which(polity_iso$polity == -66 | polity_iso$polity == -77)), &quot;polity2&quot;] &lt;- 0
+
 # Export data into csv
 write.csv(polity_iso,&quot;data_polity_processed.csv&quot;, row.names = FALSE)</code></pre>
 </div>
 <div id="wdi-data" class="section level2">
 <h2>WDI Data</h2>
-<p>Merged ISO3 country codes into the wdi data frame. Filtered out observations where ISO3 code was NA. Removed redundant columns and renamed the remaining columns. Exported the wdi data frame into data_wdi_processed.csv.</p>
+<p>Merged ISO3 country codes into the wdi data frame. Filtered out observations where ISO3 code was NA. Removed redundant columns and renamed the remaining columns. “..” values were replaced with NA. Data was filtered to only show years &gt; 1999, and then exported the wdi data frame into data_wdi_processed.csv.</p>
 <pre class="r"><code># Read in data_wdi_raw.csv
 wdi &lt;- read.csv(&quot;raw_data/data_wdi_raw.csv&quot;)
 
@@ -1691,6 +1702,11 @@ wdi &lt;- wdi[, c(-3, -5)]
 
 # Renamed columns
 names(wdi) &lt;- c(&quot;iso&quot;, &quot;country&quot;, &quot;year&quot;, &quot;agri_percent_land_area&quot;, &quot;agri_forestry_fishing_percent_GDP&quot;, &quot;agri_employment_percent&quot;, &quot;imports_percent_GDP&quot;)
+
+# Replace .. with NAs
+wdi &lt;- wdi %&gt;% replace_with_na(replace = list(agri_percent_land_area = &quot;..&quot;, agri_forestry_fishing_percent_GDP = &quot;..&quot;, imports_percent_GDP = &quot;..&quot;))
+
+wdi &lt;- wdi %&gt;% filter(year &gt; 1999)
 
 # Export CSV
 write.csv(wdi,&quot;data_wdi_processed.csv&quot;, row.names = FALSE)</code></pre>

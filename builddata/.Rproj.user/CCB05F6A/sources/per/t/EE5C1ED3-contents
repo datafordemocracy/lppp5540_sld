@@ -1,0 +1,91 @@
+# Displacement Trajectories
+# Saving Lives with Data 2
+# Michele Claibourn
+# April 2020
+
+
+
+library(shiny)
+library(tidyverse)
+library(plotly)
+
+load("www/displacement.rdata") 
+
+# generate data frame
+df_curve <- disp_full %>%
+    filter(iso %in% df$iso) %>% 
+    select(iso, year, size) %>% 
+    drop_na(iso) %>% 
+    group_by(iso) %>% 
+    arrange(year) %>% 
+    filter(max(size) > 24999) %>% 
+    mutate(years_elapsed = year - min(year),
+           end_label = ifelse(year == max(year), iso, NA),
+           iso3 = iso) %>% 
+    ungroup()
+
+
+# Define UI for application 
+ui <- fluidPage(
+
+    # Application title
+    titlePanel("Displacement Trajectories"),
+
+    # Sidebar with a slider input for number of bins 
+    sidebarLayout(
+        sidebarPanel(
+            radioButtons(inputId = "target",
+                         label = "Select a Country:",
+                         choices = levels(df$iso3),
+                         selected = NULL, 
+                         inline = TRUE),
+            
+            sliderInput(inputId = "year", 
+                        label = "Initial Year:",
+                        min = 1960, max = 2018,
+                        value = 1960, 
+                        sep = "")
+        ),
+
+        # Show a plot of the generated distribution
+        mainPanel(
+           plotlyOutput("traceplot"),
+           tags$p("View the trajectory of estimated human displacement size for a selected country relative to the full set of country estimates. Estimated size includes UNHCR's estimates of Refugees, Asylum-seekers, Internally Displaced Persons, and Others of concern.")
+           
+        )
+    )
+)
+
+# Define server logic required to draw a histogram
+server <- function(input, output) {
+
+
+    # select target
+    target <- reactive({
+        d1 <- df_curve %>% filter(iso3 == input$target & year >= input$year)
+    })
+
+    # generate plot
+    output$traceplot <- renderPlotly({
+        df_curve %>% filter(year >= input$year) %>% 
+            ggplot(aes(x = year, y = size)) + 
+            # line traces for each country in all panels
+            geom_line(aes(group = iso3),
+                      size = 0.2, color = "grey70") +
+            # line trace in red for key country in panel
+            geom_line(data = target(), aes(y = size, label = iso3), color = "firebrick") + 
+            # annotate("text", 
+            #          x = c(max(target()$year)+2, max(target()$year)+2), 
+            #          y = c(max(target()$size), max(target()$size)-50000), 
+            #          label = c(target()$iso[nrow(target())], target()$year[nrow(target())]), 
+            #          color = "firebrick", 
+            #          size = 3) +
+            labs(x = "Year", 
+                 y = "Estimated Size of Displacement", 
+                 title = "Displacement Size by Country of Origin", 
+                 caption = "Data Source: UNHCR at http://popstats.unhcr.org/")
+    })
+}
+
+# Run the application 
+shinyApp(ui = ui, server = server)

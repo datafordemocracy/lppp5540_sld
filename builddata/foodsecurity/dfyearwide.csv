@@ -1,4 +1,4 @@
-area_code,area,year_code,year,gdp,political_stability,food_production,food_supply,water,sanitation,wasting,stunted,overweight,obesity,anemia,breastfeeding,rail_density,safe_water,safe_sanitation,birthweight,undernourishment,num_undernourishment,severe_insecurity,moderate_insecurity,num_severe,num_moderate,ISO
+area_code,area,year_code,year,gdp,political_stability,food_production,food_supply,water,sanitation,wasting,stunted,overweight,obesity,anemia,breastfeeding,rail_density,safe_water,safe_sanitation,birthweight,undernourishment,num_undernourishment,severe_insecurity,moderate_insecurity,num_severe,num_moderate,iso
 1,Armenia,2000,2000,2924.7,-0.68,11.7,48,95.1,86.9,2.5,17.7,16,14.4,19.9,29.5,2.8,29.6,47.4,8.2,NA,NA,NA,NA,NA,NA,ARM
 1,Armenia,2001,2001,3224.1,NA,12.7,90,95.4,87.3,NA,NA,NA,14.6,19.9,NA,2.8,29.7,47.5,8,NA,NA,NA,NA,NA,NA,ARM
 1,Armenia,2002,2002,3669.3,-0.26,10.3,106,95.7,87.7,NA,NA,NA,14.9,20.1,NA,2.4,33.3,47.6,7.8,NA,NA,NA,NA,NA,NA,ARM
